@@ -232,10 +232,12 @@ public:
         return this->relation->verifySolution(interval1, interval2, this->func);
     }
 
-    void plotRecur(int x1, int x2, int y1, int y2);
+    bool verifySolutionAdaptive(const Interval & interval1, const Interval & interval2, int remaining_depth) const;
 
-    void plot() {
-        this->plotRecur(0, this->Nx, 0, this->Ny);
+    void plotRecur(int x1, int x2, int y1, int y2, int subpixel_recursion_depth);
+
+    void plot(int subpixel_recursion_depth = 8) {
+        this->plotRecur(0, this->Nx, 0, this->Ny, std::max(0, subpixel_recursion_depth));
     }
 };
 

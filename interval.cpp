@@ -560,15 +560,61 @@ void Func2DPlotter::writeFile(const std::string & filepath) const {
     ofs.close();
 }
 
-void Func2DPlotter::plotRecur(int x1, int x2, int y1, int y2) {
+bool Func2DPlotter::verifySolutionAdaptive(
+    const Interval & interval1,
+    const Interval & interval2,
+    int remaining_depth
+) const {
+    IntervalSet equation = this->func(interval1, interval2);
+    CmpResult eq_cmp = (*(this->relation))(equation, 0.0);
+    if (eq_cmp == FALSE) {
+        return false;
+    }
+
+    // Once a sub-box is wholly inside the function's domain, use the usual
+    // corner test.  This keeps the existing filtering of interval overestimates.
+    if (equation.isWellDefined()) {
+        return eq_cmp == TRUE || this->relation->verifySolution(interval1, interval2, this->func);
+    }
+
+    if (remaining_depth == 0) {
+        return false;
+    }
+
+    double midpoint1 = interval1.lower + (interval1.upper - interval1.lower) / 2.0;
+    double midpoint2 = interval2.lower + (interval2.upper - interval2.lower) / 2.0;
+    if (midpoint1 == interval1.lower || midpoint1 == interval1.upper ||
+        midpoint2 == interval2.lower || midpoint2 == interval2.upper) {
+        return false;
+    }
+
+    Interval interval1_lower(interval1.lower, midpoint1);
+    Interval interval1_upper(midpoint1, interval1.upper);
+    Interval interval2_lower(interval2.lower, midpoint2);
+    Interval interval2_upper(midpoint2, interval2.upper);
+    int next_depth = remaining_depth - 1;
+
+    return this->verifySolutionAdaptive(interval1_lower, interval2_lower, next_depth) ||
+           this->verifySolutionAdaptive(interval1_lower, interval2_upper, next_depth) ||
+           this->verifySolutionAdaptive(interval1_upper, interval2_lower, next_depth) ||
+           this->verifySolutionAdaptive(interval1_upper, interval2_upper, next_depth);
+}
+
+void Func2DPlotter::plotRecur(int x1, int x2, int y1, int y2, int subpixel_recursion_depth) {
     IntervalSet equation = this->func(this->sampleCoordX(x1, x2), this->sampleCoordY(y1, y2));
     CmpResult eq_cmp = (*(this->relation))(equation, 0.0);
     if (x2 - x1 <= 1 && y2 - y1 <= 1) {
-        if (!equation.isWellDefined()) {
+        if (eq_cmp == FALSE) {
             return;
-        } else if (eq_cmp == TRUE) {
+        } else if (equation.isWellDefined() && eq_cmp == TRUE) {
             this->setPixel(x1, y1, 1);
-        } else if (eq_cmp == MAYBE && this->verifySolution(x1, y1)) {
+        } else if (equation.isWellDefined() && this->verifySolution(x1, y1)) {
+            this->setPixel(x1, y1, 1);
+        } else if (!equation.isWellDefined() && this->verifySolutionAdaptive(
+                       this->sampleCoordX(x1, x2),
+                       this->sampleCoordY(y1, y2),
+                       subpixel_recursion_depth
+                   )) {
             this->setPixel(x1, y1, 1);
         }
     } else if (eq_cmp == TRUE && equation.isWellDefined()) {
@@ -580,9 +626,9 @@ void Func2DPlotter::plotRecur(int x1, int x2, int y1, int y2) {
     } else if (eq_cmp != FALSE) {
         int xm = (x1 + x2) / 2;
         int ym = (y1 + y2) / 2;
-        this->plotRecur(x1, xm, y1, ym);
-        this->plotRecur(x1, xm, ym, y2);
-        this->plotRecur(xm, x2, y1, ym);
-        this->plotRecur(xm, x2, ym, y2);
+        this->plotRecur(x1, xm, y1, ym, subpixel_recursion_depth);
+        this->plotRecur(x1, xm, ym, y2, subpixel_recursion_depth);
+        this->plotRecur(xm, x2, y1, ym, subpixel_recursion_depth);
+        this->plotRecur(xm, x2, ym, y2, subpixel_recursion_depth);
     }
 }

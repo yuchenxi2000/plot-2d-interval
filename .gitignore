@@ -3,6 +3,10 @@ gallery/*.pptx
 plot_data/*.bin
 archive/
 main
+test
+test.cpp
+plot_test.py
+gallery/test_*.png
 
 
 ## macOS
